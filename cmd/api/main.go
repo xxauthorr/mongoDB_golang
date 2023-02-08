@@ -6,18 +6,17 @@ import (
 	"log"
 	"my_app/data"
 	"net/http"
+	"os"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
-	"github.com/go-chi/cors"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 const (
-	webPort  = "80"
-	mongoURL = "mongodb://localhost:27017"
+	webPort = "3000"
+	// mongoURL = "mongodb://localhost:27017"
+	mongoURL = "saavy.b3bokeg.mongodb.net/?retryWrites=true&w=majority"
 )
 
 var client *mongo.Client
@@ -27,10 +26,12 @@ type Config struct {
 }
 
 func main() {
+
 	// connect to mongo
 	mongoClient, err := connectToMongo()
 	if err != nil {
-		log.Panic(err)
+
+		log.Println(err)
 	}
 
 	client = mongoClient
@@ -54,7 +55,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", webPort),
-		Handler: app.routes(),
+		Handler: app.Routes(),
 	}
 	err = srv.ListenAndServe()
 	if err != nil {
@@ -64,12 +65,13 @@ func main() {
 }
 
 func connectToMongo() (*mongo.Client, error) {
+	username := os.Getenv("username")
+	password := os.Getenv("password")
 	// create connection options
-	clientOptions := options.Client().ApplyURI(mongoURL)
-	clientOptions.SetAuth(options.Credential{
-		Username: "admin",
-		Password: "password",
-	})
+	// username := "admin"
+	// password := "roots199970"
+	dbURL := fmt.Sprintf("mongodb+srv://%s:%s@%s", username, password, mongoURL)
+	clientOptions := options.Client().ApplyURI(dbURL)
 	// connect
 	c, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {
@@ -77,26 +79,4 @@ func connectToMongo() (*mongo.Client, error) {
 		return nil, err
 	}
 	return c, nil
-}
-
-// routes
-
-func (app *Config) routes() http.Handler {
-	mux := chi.NewRouter()
-
-	// specify who is allowed to connect
-	mux.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
-		AllowedMethods:   []string{"POST", "PUT", "GET", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
-		AllowCredentials: true,
-		MaxAge:           300,
-	}))
-	mux.Use(middleware.Heartbeat("/ping"))
-
-	mux.Post("/insert", app.InsertData)
-
-	return mux
-
 }

@@ -5,17 +5,19 @@ services:
   app:
     build: 
       context: ./
-      dockerfile: ./app-service.dockerfile
+      dockerfile: ./Dockerfile
     restart: always
     ports:
-      - "8080:80"
+      - "3000:3000"
     deploy:
       mode: replicated
       replicas: 1
     environment:
-      - DB_username= "admin"
-      - DB_password= "password"
-    
+      - username= "admin"
+      - password= "roots199970"
+    depends_on:
+      - mongo
+
 
   mongo:
     image: 'mongo:4.2.16-bionic'
@@ -25,6 +27,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_DATABASE: students
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_PASSWORD: roots199970
     volumes:
       - ./data/mongo:/data/db/
+

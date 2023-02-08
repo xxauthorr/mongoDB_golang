@@ -36,10 +36,12 @@ type LogEntry struct {
 }
 
 // insert an entry into the collection
-func (l *LogEntry) Insert(entry LogEntry) error {
+func (l *LogEntry) Insert(entry LogEntry) (any, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 	collection := client.Database("students").Collection("entries")
 
-	_, err := collection.InsertOne(context.TODO(), LogEntry{
+	res, err := collection.InsertOne(ctx, LogEntry{
 		FirstName:     entry.FirstName,
 		LastName:      entry.LastName,
 		Age:           entry.Age,
@@ -49,9 +51,14 @@ func (l *LogEntry) Insert(entry LogEntry) error {
 	})
 	if err != nil {
 		log.Println("Error inserting into students:", err)
-		return err
+		return nil, err
 	}
-	return nil
+	var id struct {
+		ObjectId any `json:"object_id"`
+	}
+	id.ObjectId = res.InsertedID
+
+	return id, nil
 }
 
 // to get all entries from the collection students
@@ -61,8 +68,8 @@ func (l *LogEntry) All() ([]*LogEntry, error) {
 
 	collection := client.Database("students").Collection("entries")
 	opts := options.Find()
-	opts.SetSort(bson.D{{Key: "created_at", Value: -1}})
-	cursor, err := collection.Find(context.TODO(), bson.D{}, opts)
+	opts.SetSort(bson.D{{Key: "first_name", Value: -1}})
+	cursor, err := collection.Find(ctx, bson.D{}, opts)
 	if err != nil {
 		log.Println("Finding all docs error:", err)
 		return nil, err
@@ -86,7 +93,7 @@ func (l *LogEntry) All() ([]*LogEntry, error) {
 
 // to get single entry using id
 func (l *LogEntry) GetOne(id string) (*LogEntry, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	collection := client.Database("students").Collection("entries")
@@ -108,7 +115,7 @@ func (l *LogEntry) GetOne(id string) (*LogEntry, error) {
 
 // to drop the collection
 func (l *LogEntry) DropCollection() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	collection := client.Database("students").Collection("entries")
 	if err := collection.Drop(ctx); err != nil {
@@ -118,14 +125,32 @@ func (l *LogEntry) DropCollection() error {
 	return nil
 }
 
+// to delete one entry
+func (l *LogEntry) DeleteOne(id string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	collection := client.Database("students").Collection("entries")
+	docID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		log.Println("Error in changing format of object id:", err)
+		return err
+	}
+	_, err = collection.DeleteOne(ctx, bson.M{"_id": docID})
+	if err != nil {
+		log.Println("Error in deleting data:", err)
+		return err
+	}
+	return nil
+}
+
 // to update the entry
-func (l *LogEntry) Update() (*mongo.UpdateResult, error) {
+func (l *LogEntry) Update(data LogEntry) (*mongo.UpdateResult, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	collection := client.Database("students").Collection("entries")
 
-	docID, err := primitive.ObjectIDFromHex(l.ID)
+	docID, err := primitive.ObjectIDFromHex(data.ID)
 	if err != nil {
 		log.Println("Error in changing format of object id:", err)
 		return nil, err
@@ -135,11 +160,11 @@ func (l *LogEntry) Update() (*mongo.UpdateResult, error) {
 		bson.D{
 			{
 				Key: "$set", Value: bson.D{
-					{Key: "first_name", Value: l.FirstName},
-					{Key: "last_name", Value: l.LastName},
-					{Key: "email", Value: l.Email},
-					{Key: "age", Value: l.Age},
-					{Key: "Qualification", Value: l.Qualification},
+					{Key: "first_name", Value: data.FirstName},
+					{Key: "last_name", Value: data.LastName},
+					{Key: "email", Value: data.Email},
+					{Key: "age", Value: data.Age},
+					{Key: "Qualification", Value: data.Qualification},
 					{Key: "updated_at", Value: time.Now()},
 				},
 			},
